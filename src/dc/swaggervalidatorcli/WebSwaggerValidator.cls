@@ -35,13 +35,50 @@ ClassMethod testByUrl(url As %String = "https://validator.swagger.io/validator/o
 }
 
 /// see https://validator.swagger.io/ for documentation of all queryParameters.<br/>
-Method Parse(ByRef queryParameters As %Binary, Output OpenAPIV3 As %DynamicObject) As %Status
+Method Parse(
+	ByRef queryParameters As %Binary,
+	Output OpenAPIV3 As %DynamicObject,
+	ByRef InputSpec = "") As %Status
 {
     Set OpenAPIV3 = {}, sc = $$$OK
     Do:'$ISOBJECT(..httpRequest) ..initHttpRequestObject()
 
-	Set ..httpRequest.ContentType = "application/json"
-    Do ..specification.%ToJSON(..httpRequest.EntityBody)
+    If '$IsObject(InputSpec), $Extract($$$LOWER(InputSpec),1, 4) = "http" {
+        Set queryParameters("url") = InputSpec
+        Quit ..ParseByUrl(.queryParameters, .OpenAPIV3)
+    }
+
+    Set isYAMLSpec = $$$NO, yamlSpec = ""
+
+    If '$IsObject(InputSpec), InputSpec '= "" { ; file path case
+        Set file = ..loadSpecFromFile(InputSpec)
+        
+        If '..isYAML(file) {
+            Set ..specification = {}.%FromJSON(file)
+        } Else {
+            Set isYAMLSpec = $$$YES, yamlSpec = file
+        }
+
+    } ElseIf $IsObject(InputSpec), InputSpec.%IsA("%DynamicObject") {
+    
+        Set ..specification = InputSpec
+    
+    } ElseIf $IsObject(InputSpec), InputSpec.%IsA("%Stream.Object") {
+        
+        If '..isYAML(.InputSpec) {
+            Set ..specification = {}.%FromJSON(InputSpec)
+        } Else {
+            Set isYAMLSpec = $$$YES, yamlSpec = InputSpec
+        }
+    }
+    
+    Set ..httpRequest.ContentType = $Select(isYAMLSpec:"application/yaml",1:"application/json")
+    
+    If isYAMLSpec {
+        Do ..httpRequest.EntityBody.CopyFrom(yamlSpec)
+    } Else {
+        Do ..specification.%ToJSON(..httpRequest.EntityBody)
+    }
 
     Set paramName = ""
     For  {
@@ -61,7 +98,9 @@ Method Parse(ByRef queryParameters As %Binary, Output OpenAPIV3 As %DynamicObjec
     Quit sc
 }
 
-Method ParseByUrl(ByRef queryParameters As %Binary, Output OpenAPIV3 As %DynamicObject) As %Status
+Method ParseByUrl(
+	ByRef queryParameters As %Binary,
+	Output OpenAPIV3 As %DynamicObject) As %Status
 {
     Set OpenAPIV3 = {}, sc = $$$OK
     Do:'$ISOBJECT(..httpRequest) ..initHttpRequestObject()
@@ -116,6 +155,23 @@ ClassMethod AddSSLConfig(name As %String)
     New $NAMESPACE
     set $namespace="%SYS" do:'##class(Security.SSLConfigs).Exists(name) ##class(Security.SSLConfigs).Create(name)
     Quit
+}
+
+ClassMethod isYAML(stream As %Stream.Object) As %Boolean
+{
+    Do stream.Rewind()
+    Set buffer = $ZSTRIP(stream.Read(),"<W")
+    Do stream.Rewind()
+    Quit ($EXTRACT(buffer) '= "{") && ((buffer [ "swagger:")||(buffer [ "openapi:"))
+}
+
+ClassMethod loadSpecFromFile(file As %String) As %Stream.FileCharacter
+{
+    Set sc = $$$OK, stream = ##class(%Stream.FileCharacter).%New(), stream.Filename = file
+    
+    If '##class(%File).Exists(file) $$$ThrowStatus($$$ERROR($$$GeneralError,"Specification file not found : "_file))
+
+    Return stream
 }
 
 }

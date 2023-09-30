@@ -3,7 +3,7 @@
   <Document name="swagger-validator-cli.ZPM">
     <Module>
       <Name>swagger-validator-cli</Name>
-      <Version>0.0.1</Version>
+      <Version>0.0.2</Version>
       <Description>Client ObjectScript for swagger validator services</Description>
       <Packaging>module</Packaging>
       <SourcesRoot>src</SourcesRoot>

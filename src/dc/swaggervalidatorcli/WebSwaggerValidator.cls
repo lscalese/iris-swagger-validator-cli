@@ -91,7 +91,7 @@ Method Parse(
 
     #dim pHttpResponse As %Net.HttpResponse = ..httpRequest.HttpResponse
 	
-    Quit:pHttpResponse.StatusCode'="200" $$$ERROR(5001, "Https Status code "_pHttpResponse.StatusCode)
+    Quit:pHttpResponse.StatusCode'="200" $$$ERROR($$$GeneralError, "Web Swagger Validator: Https Status code " _ pHttpResponse.StatusCode _ "(" _ pHttpResponse.Data.Read() _ ")")
 
     Set OpenAPIV3 = {}.%FromJSON(pHttpResponse.Data)
     
